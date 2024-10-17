@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: saapws-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/server-alias: saapws.policiacivil.go.gov.br
+spec:
+  tls:
+    - hosts:
+        - saapws-homo.policiacivil.go.gov.br
+        - saapws.policiacivil.go.gov.br
+      secretName: certificado-pc
+  rules:
+    - host: saapws-homo.policiacivil.go.gov.br
+      http:
+        paths:
+          - backend:
+              service:
+                name: saapws-service
+                port:
+                  number: 80
+            path: /
+            pathType: ImplementationSpecific

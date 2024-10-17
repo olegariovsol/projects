@@ -1,0 +1,54 @@
+# Imagem base
+FROM php:8.2-apache
+
+RUN usermod -u 1000 www-data
+
+# Atualizar pacotes e instalar dependências necessárias
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    libpq-dev \
+    zip \
+    unzip \
+    && docker-php-ext-install pdo pdo_pgsql
+
+# Clear cache
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Configurar o Apache
+RUN a2enmod rewrite
+
+# Definir o diretório de trabalho
+WORKDIR /var/www/html
+
+# Copiar os arquivos do aplicativo para o contêiner
+COPY . /var/www/html
+
+# Get latest Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Instalar as dependências do Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+RUN composer install --no-dev
+
+# RUN sudo chown -R www-data:www-data /var/www/html \
+#     && sudo chmod 775 -R /var/www/html \
+
+# Configurar as variáveis de ambiente
+ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+ENV DB_CONNECTION pgsql
+ENV DB_HOST db
+ENV DB_PORT 5432
+ENV DB_DATABASE saapws
+ENV DB_USERNAME postgres
+ENV DB_PASSWORD Ditpcgo21@
+
+# Expor a porta 80
+EXPOSE 80
+
+# Comando de inicialização do contêiner
+CMD ["apache2-foreground"]
+

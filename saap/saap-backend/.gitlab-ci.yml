@@ -1,0 +1,88 @@
+variables:
+  APP_NAME: saapws
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_DRIVER: overlay2
+
+stages:
+  - composer
+  - docker
+  - homo
+  - prod
+
+composer:
+  image: composer
+  stage: composer
+  script:
+    - composer install --ignore-platform-reqs --optimize-autoloader --no-dev
+  cache:
+    paths:
+      - vendor/
+    key: composer-cache
+  artifacts:
+    paths:
+      - vendor/
+
+docker:
+  image: docker:19.03
+  stage: docker
+  services:
+    - docker:24.0.5-dind
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build -t $APP_NAME .
+    - docker tag $APP_NAME $CI_REGISTRY/ssp/$APP_NAME:${CI_COMMIT_SHA:0:8}
+    - docker push $CI_REGISTRY/ssp/$APP_NAME
+
+homo-only-master:
+  image: dtzar/helm-kubectl
+  environment:
+    name: homologacao
+  stage: homo
+  only:
+    - master
+    - main
+  script:
+    - export KUBE_CONFIG="$KUBE_CONFIG_HOMO"
+    - deploy
+
+homo-except-master:
+  image: dtzar/helm-kubectl
+  environment:
+    name: homologacao
+  stage: homo
+  except:
+    - master
+    - main
+  when: manual
+  script:
+    - export KUBE_CONFIG="$KUBE_CONFIG_HOMO"
+    - deploy
+
+prod:
+  image: dtzar/helm-kubectl
+  stage: prod
+  environment:
+    name: producao
+  when: manual
+  only:
+    - master
+    - main
+  script:
+    - export KUBE_CONFIG="$KUBE_CONFIG_PROD"
+    - deploy
+
+#---------------------------------------------------------------------------
+
+.functions: &functions |
+
+  function deploy() {
+    mkdir ~/.kube && echo "$KUBE_CONFIG" > ~/.kube/config
+    cat ./kube/deployment.yaml | sed "s/{{COMMIT_ID}}/${CI_COMMIT_SHA:0:8}/g" | sed "s/{{JOB_ID}}/$CI_JOB_ID/g" > deployment-temp.yaml
+    kubectl apply -f deployment-temp.yaml
+    kubectl apply -f ./kube/service.yaml
+    kubectl apply -f ./kube/ingress.yaml
+    kubectl rollout status -f deployment-temp.yaml || (kubectl describe pod -l jobid=$CI_JOB_ID && kubectl logs --tail=10000 -l jobid=$CI_JOB_ID && exit 1)
+  }
+
+before_script:
+  - *functions

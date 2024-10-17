@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saapws-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: saapws-pod
+  template:
+    metadata:
+      labels:
+        app: saapws-pod
+        jobid: "{{JOB_ID}}"
+    spec:
+      imagePullSecrets:
+        - name: docker-registry-ssp
+      containers:
+        - name: saapws-container
+          envFrom:
+            - secretRef:
+                name: secret-saapws
+            - configMapRef:
+                name: config-saapws
+          image: docker.ssp.go.gov.br/ssp/saapws:{{COMMIT_ID}}
+          ports:
+            - name: http
+              #containerPort: 8000
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /healthcheck #liberar trafego para o POD somente quando a app subir sem problemas (estiver tudo OK)
+              port: http
+            initialDelaySeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+            timeoutSeconds: 1
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthcheck #reiniciar o POD quando a app se tornar UNRESPONSIVE
+              port: http
+            initialDelaySeconds: 15
+            failureThreshold: 3
+            periodSeconds: 3
