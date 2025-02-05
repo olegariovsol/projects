@@ -13,6 +13,8 @@ composer:
   image: composer
   stage: composer
   script:
+    - echo "20.201.28.148 api.github.com" >> /etc/hosts
+    - echo "20.201.28.149 codeload.github.com" >> /etc/hosts
     - composer install --ignore-platform-reqs --optimize-autoloader --no-dev
   cache:
     paths:
